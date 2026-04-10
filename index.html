@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>JMB PRO V20 - TOTAL CONTROL</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root { --jmb-slate: #1a2a3a; --jmb-accent: #7cb342; --jmb-bg: #f4f7f6; }
+        * { touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-font-smoothing: antialiased; }
+        body { font-family: 'Inter', system-ui, sans-serif; background: var(--jmb-bg); color: #333; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        input, textarea, select { font-size: 16px !important; border-radius: 12px; }
+        .corp-header { background: var(--jmb-slate); color: white; padding: env(safe-area-inset-top) 20px 15px 20px; border-bottom: 4px solid var(--jmb-accent); z-index: 50; flex-shrink: 0; }
+        #sidebar { z-index: 9999; transition: transform 0.3s ease; background: #111; }
+        .nav-link { display: flex; align-items: center; gap: 15px; padding: 20px 25px; color: #888; font-weight: 700; width: 100%; border-left: 5px solid transparent; }
+        .nav-link.active { color: white; background: rgba(255,255,255,0.05); border-left-color: var(--jmb-accent); }
+        .grid-card { background: white; border-radius: 15px; border: 1px solid #ddd; cursor: pointer; overflow: hidden; position: relative; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .safe-bottom { padding-bottom: calc(env(safe-area-inset-bottom) + 1.5rem); }
+        .btn-action { transition: all 0.2s; active: scale(0.95); }
+    </style>
+</head>
+<body>
+
+    <div id="overlay" onclick="closeSidebar()" class="fixed inset-0 bg-black/70 z-[9000] hidden"></div>
+
+    <aside id="sidebar" class="fixed inset-y-0 left-0 w-72 -translate-x-full shadow-2xl">
+        <div class="p-8 flex flex-col items-center">
+            <div class="w-16 h-16 bg-[#7cb342] rounded-2xl flex items-center justify-center text-white font-black text-3xl">J</div>
+            <h1 class="text-white mt-4 font-black text-[10px] tracking-widest opacity-40 uppercase">JMB Enterprise</h1>
+        </div>
+        <nav>
+            <button onclick="view('pos')" id="btn-pos" class="nav-link active">🛒 POS TERMINAL</button>
+            <button onclick="view('inventory')" id="btn-inventory" class="nav-link">📋 INVENTORY / CSV</button>
+            <button onclick="view('history')" id="btn-history" class="nav-link">📊 SALES HISTORY</button>
+            <button onclick="view('settings')" id="btn-settings" class="nav-link">⚙️ CONFIGURATION</button>
+        </nav>
+    </aside>
+
+    <header class="corp-header flex justify-between items-center">
+        <button onclick="openSidebar()" class="p-2 text-2xl">☰</button>
+        <div class="text-center">
+            <div id="view-title" class="font-black text-[8px] tracking-[0.3em] uppercase text-white/40">TERMINAL</div>
+            <div class="font-bold text-sm">PROFESSIONAL V20</div>
+        </div>
+        <button onclick="toggleCart()" class="bg-white/10 px-4 py-2 rounded-xl font-black text-[10px] border border-white/20">
+            CART (<span id="cart-qty">0</span>)
+        </button>
+    </header>
+
+    <main class="flex-1 overflow-hidden relative">
+        <section id="view-pos" class="h-full flex flex-col">
+            <div id="cat-bar" class="bg-white px-4 py-3 flex gap-2 overflow-x-auto no-scrollbar border-b"></div>
+            <div id="pos-grid" class="flex-1 overflow-y-auto p-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 content-start"></div>
+        </section>
+
+        <section id="view-inventory" class="hidden h-full flex flex-col bg-white">
+            <div class="p-4 border-b bg-gray-50 space-y-3">
+                <div class="flex justify-between items-center">
+                    <span class="font-black text-[10px] uppercase text-gray-400">Inventory Management</span>
+                    <button onclick="openModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-black text-[9px] uppercase">+ New Item</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="exportInventory()" class="bg-white border-2 border-gray-200 py-3 rounded-xl font-black text-[9px] uppercase hover:bg-gray-100">Export CSV</button>
+                    <label class="bg-white border-2 border-gray-200 py-3 rounded-xl font-black text-[9px] uppercase text-center cursor-pointer hover:bg-gray-100">
+                        Import CSV <input type="file" id="import-csv" accept=".csv" hidden onchange="importInventory(event)">
+                    </label>
+                </div>
+            </div>
+            <div id="inventory-list" class="flex-1 overflow-y-auto divide-y"></div>
+        </section>
+
+        <section id="view-history" class="hidden h-full flex flex-col bg-white">
+            <div class="p-5 bg-slate-900 text-white">
+                <div class="flex gap-4 mb-4">
+                    <div class="flex-1">
+                        <div class="text-[8px] font-black text-white/40 uppercase">Total Sales</div>
+                        <div id="stat-sales" class="text-xl font-black text-green-400">₱0.00</div>
+                    </div>
+                </div>
+                <button onclick="exportSales()" class="w-full bg-green-600 text-white py-4 rounded-xl font-black text-[10px] uppercase">Download Excel Report</button>
+            </div>
+            <div id="history-list" class="flex-1 overflow-y-auto divide-y"></div>
+        </section>
+
+        <section id="view-settings" class="hidden h-full overflow-y-auto bg-white p-6">
+            <div class="max-w-md mx-auto space-y-5">
+                <h3 class="font-black text-xs text-gray-400 uppercase">Receipt Header Branding</h3>
+                <input id="set-name" placeholder="MAIN HEADER (e.g. JMB CRAFTS)" class="w-full p-4 bg-gray-100 font-black uppercase">
+                <input id="set-sub" placeholder="SUB-HEADER (e.g. Handmade Goods)" class="w-full p-4 bg-gray-100 font-bold text-sm">
+                <textarea id="set-address" placeholder="ADDRESS & CONTACT INFO" class="w-full p-4 bg-gray-100 h-24 font-bold text-xs"></textarea>
+                
+                <h3 class="font-black text-xs text-gray-400 uppercase pt-4">Printing Preferences</h3>
+                <select id="set-paper" class="w-full p-4 bg-gray-100 font-black uppercase text-xs">
+                    <option value="a4">Standard A4 Document</option>
+                    <option value="58mm">Portable Thermal (58mm)</option>
+                    <option value="48mm">Compact Thermal (48mm)</option>
+                </select>
+
+                <h3 class="font-black text-xs text-gray-400 uppercase pt-4">Footer Notes</h3>
+                <input id="set-foot" placeholder="FOOTNOTE (e.g. No Refund Policy)" class="w-full p-4 bg-gray-100 font-bold text-sm">
+                
+                <button onclick="saveSettings()" class="w-full bg-black text-white py-5 rounded-2xl font-black uppercase tracking-widest">Save Configuration</button>
+                <button onclick="factoryReset()" class="w-full text-red-500 font-black text-[10px] uppercase pt-10">Factory Reset Database</button>
+            </div>
+        </section>
+    </main>
+
+    <div id="cart-drawer" class="fixed inset-0 z-[8000] hidden flex flex-col justify-end">
+        <div class="bg-black/60 flex-1" onclick="toggleCart()"></div>
+        <div class="bg-white h-[85vh] rounded-t-[40px] shadow-2xl flex flex-col p-6">
+            <input id="cart-cust" placeholder="CUSTOMER NAME" class="w-full p-5 bg-gray-100 rounded-2xl font-black uppercase mb-4 border-2 border-transparent focus:border-[#7cb342]">
+            <div id="cart-items" class="flex-1 overflow-y-auto space-y-2"></div>
+            <div class="pt-6 border-t mt-4 safe-bottom">
+                <div class="flex justify-between items-center mb-6">
+                    <span class="font-black text-gray-400 text-xs">GRAND TOTAL</span>
+                    <span id="cart-total" class="text-4xl font-black">₱0.00</span>
+                </div>
+                <button onclick="processSale()" class="w-full bg-[#7cb342] text-white py-6 rounded-3xl font-black text-xl">COMPLETE & PRINT</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal" class="fixed inset-0 z-[9500] bg-black/80 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-sm rounded-[30px] p-8 space-y-4">
+            <input type="hidden" id="edit-id">
+            <div id="img-prev" onclick="document.getElementById('in-img').click()" class="w-24 h-24 bg-gray-100 rounded-2xl mx-auto border-2 border-dashed flex items-center justify-center cursor-pointer overflow-hidden font-black text-[10px] text-gray-400 text-center uppercase">Photo</div>
+            <input type="file" id="in-img" accept="image/*" hidden onchange="handleImage(this)">
+            <input id="in-name" placeholder="PRODUCT NAME" class="w-full border-b-2 py-3 font-black uppercase outline-none">
+            <div class="flex gap-4">
+                <input id="in-price" type="number" placeholder="PRICE" class="w-1/2 border-b-2 py-3 font-black text-[#7cb342] outline-none">
+                <input id="in-stock" type="number" placeholder="STOCK" class="w-1/2 border-b-2 py-3 font-bold outline-none">
+            </div>
+            <input id="in-cat" placeholder="CATEGORY" class="w-full border-b-2 py-3 font-black text-xs uppercase outline-none">
+            <button onclick="saveProduct()" class="w-full bg-[#7cb342] text-white py-4 rounded-xl font-black uppercase">Save to Inventory</button>
+            <button id="del-btn" onclick="deleteProduct()" class="w-full text-red-500 font-black text-[10px] uppercase hidden">Delete Permanent</button>
+            <button onclick="closeModal()" class="w-full text-gray-400 font-bold text-[10px] uppercase">Close</button>
+        </div>
+    </div>
+
+    <script>
+        // STORAGE ENGINES
+        const DB_STOCK = 'JMB_V20_PRO_STOCK';
+        const DB_LOGS = 'JMB_V20_PRO_LOGS';
+        const DB_CFG = 'JMB_V20_PRO_CFG';
+
+        let items = JSON.parse(localStorage.getItem(DB_STOCK)) || [];
+        let logs = JSON.parse(localStorage.getItem(DB_LOGS)) || [];
+        let config = JSON.parse(localStorage.getItem(DB_CFG)) || { name: "JMB ENTERPRISE", sub: "Premium Quality", address: "Philippines", paper: "58mm", foot: "Thank you for shopping!" };
+
+        let cart = [];
+        let curCat = 'All';
+        let curImg = "";
+
+        function sync() {
+            localStorage.setItem(DB_STOCK, JSON.stringify(items));
+            localStorage.setItem(DB_LOGS, JSON.stringify(logs));
+            localStorage.setItem(DB_CFG, JSON.stringify(config));
+            render();
+        }
+
+        // NAVIGATION
+        function openSidebar() { document.getElementById('sidebar').style.transform = 'translateX(0)'; document.getElementById('overlay').classList.remove('hidden'); }
+        function closeSidebar() { document.getElementById('sidebar').style.transform = 'translateX(-100%)'; document.getElementById('overlay').classList.add('hidden'); }
+        function view(v) {
+            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(`view-${v}`).classList.remove('hidden');
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            document.getElementById(`btn-${v}`).classList.add('active');
+            document.getElementById('view-title').innerText = v.toUpperCase();
+            closeSidebar();
+        }
+
+        // CSV ENGINE: EXPORT INVENTORY
+        function exportInventory() {
+            let csv = "Name,Price,Stock,Category\n";
+            items.forEach(i => {
+                csv += `"${i.name}",${i.price},${i.stock},"${i.cat}"\n`;
+            });
+            downloadBlob(csv, "JMB_Inventory_Master.csv");
+        }
+
+        // CSV ENGINE: IMPORT INVENTORY
+        function importInventory(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const rows = text.split('\n').slice(1);
+                const imported = rows.filter(r => r.trim()).map(r => {
+                    const cols = r.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+                    return {
+                        id: Date.now() + Math.random(),
+                        name: cols[0].replace(/"/g,''),
+                        price: parseFloat(cols[1]) || 0,
+                        stock: parseInt(cols[2]) || 0,
+                        cat: cols[3]?.replace(/"/g,'') || 'GEN',
+                        img: ""
+                    };
+                });
+                if(confirm(`Replace inventory with ${imported.length} items?`)) {
+                    items = imported;
+                    sync();
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // PRINT ENGINE
+        function printReceipt(id) {
+            const r = logs.find(x => x.id === id);
+            const paper = config.paper;
+            let width = "58mm";
+            if(paper === '48mm') width = "48mm";
+            if(paper === 'a4') width = "210mm";
+
+            const printWin = window.open('', '_blank');
+            printWin.document.write(`
+                <html>
+                <head>
+                    <style>
+                        body { font-family: 'Courier New', monospace; width: ${width}; margin: 0 auto; padding: 10px; font-size: ${paper==='a4'?'14px':'12px'}; }
+                        .center { text-align: center; }
+                        .bold { font-weight: bold; }
+                        .sep { border-bottom: 1px dashed #000; margin: 10px 0; }
+                        table { width: 100%; border-collapse: collapse; }
+                        .total { font-size: 1.5em; text-align: right; margin-top: 10px; border-top: 1px double #000; }
+                        @media print { .no-print { display: none; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="center">
+                        <h1 style="margin:0">${config.name}</h1>
+                        <div class="bold">${config.sub}</div>
+                        <div style="font-size:10px">${config.address}</div>
+                    </div>
+                    <div class="sep"></div>
+                    <div>INV: #${r.no}</div>
+                    <div>DATE: ${r.date}</div>
+                    <div>CUST: ${r.customer}</div>
+                    <div class="sep"></div>
+                    <table>
+                        ${r.items.map(i => `<tr><td>${i.name}<br>${i.qty} x ${i.price}</td><td align="right">₱${(i.qty*i.price).toLocaleString()}</td></tr>`).join('')}
+                    </table>
+                    <div class="total bold">TOTAL: ₱${r.total.toLocaleString()}</div>
+                    <div class="sep"></div>
+                    <div class="center" style="margin-top:20px">${config.foot}</div>
+                    <script>window.onload = function(){ window.print(); window.close(); }<\/script>
+                </body>
+                </html>
+            `);
+            printWin.document.close();
+        }
+
+        // CORE LOGIC
+        function render() {
+            // POS
+            document.getElementById('pos-grid').innerHTML = items.filter(i => curCat === 'All' || i.cat === curCat).map(i => `
+                <div onclick="addToCart(${i.id})" class="grid-card p-2">
+                    <div class="aspect-square bg-gray-100 rounded-xl overflow-hidden mb-2">
+                        ${i.img ? `<img src="${i.img}" class="w-full h-full object-cover">` : `<div class="w-full h-full flex items-center justify-center text-xl font-black text-gray-200">${i.name[0]}</div>`}
+                    </div>
+                    <div class="font-black text-[9px] uppercase truncate">${i.name}</div>
+                    <div class="font-bold text-[#7cb342] text-[10px]">₱${i.price} <span class="text-gray-300 text-[8px] ml-1">STK:${i.stock}</span></div>
+                </div>
+            `).join('');
+
+            // Cats
+            const cats = ['All', ...new Set(items.map(i => i.cat))];
+            document.getElementById('cat-bar').innerHTML = cats.map(c => `
+                <button onclick="curCat='${c}'; render()" class="px-5 py-2 rounded-xl text-[9px] font-black uppercase whitespace-nowrap ${curCat===c ? 'bg-slate-800 text-white':'bg-white border text-gray-400'}">${c}</button>
+            `).join('');
+
+            // Inventory
+            document.getElementById('inventory-list').innerHTML = items.map(i => `
+                <div onclick="editProduct(${i.id})" class="p-4 flex justify-between items-center active:bg-gray-50">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-gray-100 overflow-hidden">${i.img ? `<img src="${i.img}" class="w-full h-full object-cover">` : ''}</div>
+                        <div><div class="font-black text-[11px] uppercase">${i.name}</div><div class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">${i.cat} | ₱${i.price} | STK: ${i.stock}</div></div>
+                    </div>
+                    <div class="text-[9px] font-black text-blue-500 uppercase">Edit</div>
+                </div>
+            `).join('');
+
+            // History
+            document.getElementById('history-list').innerHTML = logs.map(l => `
+                <div class="p-5 border-b ${l.voided ? 'opacity-30' : ''}">
+                    <div class="flex justify-between items-start mb-2">
+                        <div><div class="font-black text-[11px] uppercase">#${l.no} - ${l.customer}</div><div class="text-[9px] font-bold text-gray-400">${l.date}</div></div>
+                        <div class="text-right"><div class="font-black text-sm">₱${l.total.toLocaleString()}</div></div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="printReceipt(${l.id})" class="bg-gray-100 px-3 py-1 rounded text-[8px] font-black uppercase">Re-Print</button>
+                        ${!l.voided ? `<button onclick="voidSale(${l.id})" class="text-red-500 border border-red-200 px-3 py-1 rounded text-[8px] font-black uppercase">Void</button>` : '<span class="text-red-600 text-[8px] font-black italic">VOIDED</span>'}
+                    </div>
+                </div>
+            `).join('');
+
+            const sales = logs.filter(l => !l.voided).reduce((s,l) => s + l.total, 0);
+            document.getElementById('stat-sales').innerText = `₱${sales.toLocaleString()}`;
+            document.getElementById('cart-qty').innerText = cart.reduce((s,i) => s + i.qty, 0);
+        }
+
+        // ACTIONS
+        function addToCart(id) {
+            const p = items.find(x => x.id === id);
+            if(p.stock <= 0) return alert("No stock");
+            const c = cart.find(x => x.id === id);
+            if(c) { if(c.qty < p.stock) c.qty++; } else { cart.push({...p, qty:1}); }
+            updateCartUI();
+        }
+
+        function updateCartUI() {
+            document.getElementById('cart-items').innerHTML = cart.map((c, idx) => `
+                <div class="flex justify-between items-center bg-gray-50 p-4 rounded-xl">
+                    <div class="font-black text-[10px] uppercase">${c.qty}x ${c.name}</div>
+                    <button onclick="cart.splice(${idx},1); updateCartUI()" class="text-red-500 font-black px-2">✕</button>
+                </div>
+            `).join('');
+            const total = cart.reduce((s,i) => s + (i.qty * i.price), 0);
+            document.getElementById('cart-total').innerText = `₱${total.toLocaleString()}`;
+            document.getElementById('cart-qty').innerText = cart.reduce((s,i) => s + i.qty, 0);
+        }
+
+        function processSale() {
+            const cust = document.getElementById('cart-cust').value;
+            if(!cart.length || !cust) return alert("Items and Customer Name Required");
+
+            const log = {
+                id: Date.now(), no: Math.floor(10000 + Math.random() * 89999),
+                date: new Date().toLocaleString(), customer: cust.toUpperCase(),
+                items: JSON.parse(JSON.stringify(cart)), total: cart.reduce((s,i) => s + (i.qty * i.price), 0),
+                voided: false
+            };
+
+            cart.forEach(c => { const i = items.find(x => x.id === c.id); if(i) i.stock -= c.qty; });
+            logs.unshift(log);
+            printReceipt(log.id);
+            cart = []; document.getElementById('cart-cust').value = "";
+            toggleCart(); sync();
+        }
+
+        function saveProduct() {
+            const id = document.getElementById('edit-id').value;
+            const p = {
+                id: id ? parseFloat(id) : Date.now(),
+                name: document.getElementById('in-name').value.toUpperCase(),
+                price: parseFloat(document.getElementById('in-price').value) || 0,
+                stock: parseInt(document.getElementById('in-stock').value) || 0,
+                cat: document.getElementById('in-cat').value.toUpperCase() || 'GEN',
+                img: curImg
+            };
+            if(id) { const idx = items.findIndex(x => x.id == id); items[idx] = p; } 
+            else { items.push(p); }
+            sync(); closeModal();
+        }
+
+        function editProduct(id) {
+            const p = items.find(x => x.id == id);
+            document.getElementById('edit-id').value = p.id;
+            document.getElementById('in-name').value = p.name;
+            document.getElementById('in-price').value = p.price;
+            document.getElementById('in-stock').value = p.stock;
+            document.getElementById('in-cat').value = p.cat;
+            curImg = p.img; document.getElementById('img-prev').innerHTML = p.img ? `<img src="${p.img}" class="w-full h-full object-cover">` : 'Photo';
+            document.getElementById('del-btn').classList.remove('hidden');
+            openModal();
+        }
+
+        function deleteProduct() {
+            if(confirm("Delete product?")) {
+                items = items.filter(x => x.id != document.getElementById('edit-id').value);
+                sync(); closeModal();
+            }
+        }
+
+        function saveSettings() {
+            config = {
+                name: document.getElementById('set-name').value,
+                sub: document.getElementById('set-sub').value,
+                address: document.getElementById('set-address').value,
+                paper: document.getElementById('set-paper').value,
+                foot: document.getElementById('set-foot').value
+            };
+            sync(); alert("Configuration Saved Permanently");
+        }
+
+        function exportSales() {
+            let csv = "\uFEFFInvoice,Date,Customer,Total,Status\n";
+            logs.forEach(l => { csv += `${l.no},${l.date},"${l.customer}",${l.total},${l.voided?'VOID':'SUCCESS'}\n`; });
+            downloadBlob(csv, "JMB_Sales_Report.csv");
+        }
+
+        function downloadBlob(content, filename) {
+            const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = filename; a.click();
+        }
+
+        function handleImage(input) {
+            const reader = new FileReader();
+            reader.onload = (e) => { curImg = e.target.result; document.getElementById('img-prev').innerHTML = `<img src="${curImg}" class="w-full h-full object-cover">`; };
+            reader.readAsDataURL(input.files[0]);
+        }
+
+        function voidSale(id) { if(confirm("Void sale?")) { logs.find(l => l.id === id).voided = true; sync(); } }
+        function factoryReset() { if(confirm("Wipe everything?")) { localStorage.clear(); location.reload(); } }
+        function toggleCart() { document.getElementById('cart-drawer').classList.toggle('hidden'); }
+        function openModal() { document.getElementById('modal').classList.remove('hidden'); }
+        function closeModal() { document.getElementById('modal').classList.add('hidden'); document.getElementById('edit-id').value=""; document.getElementById('del-btn').classList.add('hidden'); curImg=""; document.getElementById('img-prev').innerHTML="Photo"; }
+
+        // BOOT
+        document.getElementById('set-name').value = config.name;
+        document.getElementById('set-sub').value = config.sub;
+        document.getElementById('set-address').value = config.address;
+        document.getElementById('set-paper').value = config.paper;
+        document.getElementById('set-foot').value = config.foot;
+        render();
+    </script>
+</body>
+</html>
